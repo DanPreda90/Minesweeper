@@ -1,0 +1,56 @@
+module Main (main) where
+
+import Lib
+import qualified Graphics.UI.Threepenny as UI
+
+data Status = Empty |
+              Mine  |
+              Clear deriving Show
+
+data Cell = Cell {cellSize::Double,position::(Double,Double),state::Status,marked::Bool} deriving Show
+
+type Grid = [[Cell]]
+
+positions :: Int -> Int -> Double -> Double -> Double -> [[(Double,Double)]]
+positions _ 0 _ _  _ = []
+positions size n x cellSize step = [rowPositions size x step] `mappend` (positions size (n-1) (x+cellSize+step) step)
+
+rowPositions :: Int -> Double -> Double -> [(Double,Double)]
+rowPositions n x step = take n $ iterate (\(x,y) -> (x,y+step)) (x,0)
+
+newRow :: [(Double,Double)] -> [Cell]
+newRow [] = []
+newRow (p:ps) = [cell p Empty 50.0] `mappend` newRow ps
+
+grid :: Int -> Double -> Grid
+grid size step = map (newRow) (positions size size 0 step)
+
+cell :: (Double,Double) -> Status -> Double -> Cell
+cell pos status s = Cell {cellSize=s,position=pos,state=status,marked=False}
+
+main :: IO ()
+main = do
+  UI.startGUI UI.defaultConfig setup
+
+setup window = do
+  canv <- UI.canvas
+    UI.# UI.set UI.height 400
+    UI.# UI.set UI.width 400
+    UI.# UI.set UI.style [("border","solid black 1px"),("background","#eee")]
+
+  createGrid canv (grid 10 20)
+  UI.getBody window UI.#+ [UI.element canv]
+  return ()
+
+createGrid :: UI.Element -> Grid -> UI.UI ()
+createGrid e [] = return ()
+createGrid e (r:rs) = do
+                        createRow e r
+                        createGrid e rs
+
+createRow :: UI.Element -> [Cell] -> UI.UI ()
+createRow e [] = return ()
+createRow e (r:rs) = do
+                       e UI.# UI.set' UI.fillStyle (UI.htmlColor "black")
+                       e UI.# UI.fillRect (position r) (cellSize r) (cellSize r)
+                       createRow e rs

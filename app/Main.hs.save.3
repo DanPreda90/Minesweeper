@@ -1,0 +1,86 @@
+module Main (main) where
+
+import Lib
+
+import Data.IORef
+import Control.Monad.IO.Class
+import qualified Graphics.UI.Threepenny as UI
+
+data Status = Empty |
+              Mine  |
+              Clear deriving Show
+
+data Cell = Cell {position::(Double,Double),status::Status,marked::Bool} deriving Show
+
+type Grid = [[Cell]]
+
+positions :: Int -> Int -> Double -> Double -> [[(Double,Double)]]
+positions _ 0 _ _ = []
+positions size n x step = [rowPositions size x step] `mappend` (positions size (n-1) (x+step) step)
+
+rowPositions :: Int -> Double -> Double -> [(Double,Double)]
+rowPositions n x step = take n $ iterate (\(x,y) -> (x,y+step)) (x,0)
+
+newRow :: [(Double,Double)] -> [Cell]
+newRow [] = []
+newRow (p:ps) = [cell p Empty] `mappend` newRow ps
+
+grid :: Int -> Double -> Double -> Grid
+grid size cellSize step = map (newRow) (positions size size 0 (step+cellSize))
+
+cell :: (Double,Double) -> Status -> Cell
+cell pos s = Cell {position=pos,status=s,marked=False}
+
+main :: IO ()
+main = do
+  UI.startGUI UI.defaultConfig setup
+
+setup window = do
+  canv <- UI.canvas
+    UI.# UI.set UI.height 700
+    UI.# UI.set UI.width 700
+    UI.# UI.set UI.style [("border","solid black 1px"),("background","#eee")]
+
+
+  g <- liftIO $ newIORef (grid 20 30 5)
+  currentPosition <- liftIO $ newIORef (0,0)
+
+  UI.on UI.mousemove canv $ \xy ->
+    do liftIO $ writeIORef currentPosition xy
+
+  UI.on UI.click canv $ \_ ->
+    do (x,y) <- liftIO $ readIORef currentPosition
+       return ()
+
+  do
+    gr <- liftIO $ readIORef g
+    drawGrid canv 30 gr
+    return ()
+
+  UI.getBody window UI.#+ [UI.element canv]
+  return ()
+
+drawGrid :: UI.Element -> Double -> Grid -> UI.UI ()
+drawGrid _ _ [] = return ()
+drawGrid e size (r:rs) = do
+                        drawRow e size r
+                        drawGrid e size rs
+
+drawRow :: UI.Element -> Double -> [Cell] -> UI.UI ()
+drawRow _ _ [] = return ()
+drawRow e size (r:rs) = do
+                            drawCell e size r
+                            drawRow e size rs
+
+drawCell :: UI.Element -> Double -> Cell -> UI.UI ()
+drawCell e size c = do
+                      drawCellStatus e (status c)
+                      e UI.# UI.fillRect (position c) size size
+
+drawCellStatus e Empty = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "#c9c9c9")
+drawCellStatus e Mine = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "red")
+drawCellStatus e Clear = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "black")
+
+
+updateGrid :: IO Grid -> (Double,Double) -> IO Grid
+
