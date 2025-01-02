@@ -23,6 +23,8 @@ dependencies:
 - base >= 4.7 && < 5
 - threepenny-gui
 - containers
+- random
+- transformers
 
 ghc-options:
 - -Wall

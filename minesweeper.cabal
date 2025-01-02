@@ -36,7 +36,9 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , random
     , threepenny-gui
+    , transformers
   default-language: Haskell2010
 
 executable minesweeper-exe
@@ -52,7 +54,9 @@ executable minesweeper-exe
       base >=4.7 && <5
     , containers
     , minesweeper
+    , random
     , threepenny-gui
+    , transformers
   default-language: Haskell2010
 
 test-suite minesweeper-test
@@ -69,5 +73,7 @@ test-suite minesweeper-test
       base >=4.7 && <5
     , containers
     , minesweeper
+    , random
     , threepenny-gui
+    , transformers
   default-language: Haskell2010
