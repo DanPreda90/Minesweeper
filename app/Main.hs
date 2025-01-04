@@ -6,7 +6,7 @@ import Data.IORef
 import qualified Data.Map.Strict as Map
 import System.Random
 import Control.Monad.IO.Class
-import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.State.Lazy
 
 import qualified Graphics.UI.Threepenny as UI
 
@@ -39,29 +39,35 @@ setup window = do
   UI.on UI.mousemove canv $ \xy ->
     do liftIO $ writeIORef currentPosition xy
 
-  {-UI.on UI.click clearBtn  $ \_ ->
+  UI.on UI.click clearBtn  $ \_ ->
     do
       gen <- newStdGen 
       let cleared = grid size
-      let newGs = initGameState cleared size gen
-      liftIO $ writeIORef gamestate newGs 
-      drawGrid canv step (Map.assocs (evalState newGs (0,Playing)))-}
+      let (g,(m,st)) = runState (initGameState cleared size gen) (0,Playing)
+      liftIO $ writeIORef gamestate (m,st) 
+      liftIO $ writeIORef gridstate g
+      drawGrid canv step (Map.assocs g)
 
   UI.on UI.click canv $ \_ ->
     do 
-      mark <- liftIO $ readIORef markToggle
-      liftIO $ print mark
-      pos <- liftIO $ readIORef currentPosition
       gs <- liftIO $ readIORef gamestate
-      gr <- liftIO $ readIORef gridstate
-      let (x,y) = findCellPos pos (fromIntegral $ size*cellSize)
-      let (grNew,gsNew) = runState (updateGameState gr (x,y) mark) gs
-      liftIO $ print gsNew
-      liftIO $ print (x,y)
-      liftIO $ writeIORef gamestate gsNew
-      liftIO $ writeIORef gridstate grNew 
-      drawGrid canv step (Map.assocs grNew)
-      return ()
+      case (snd gs) of
+        Playing ->
+          do
+            mark <- liftIO $ readIORef markToggle
+            liftIO $ print mark
+            pos <- liftIO $ readIORef currentPosition
+            gr <- liftIO $ readIORef gridstate
+            
+            let (x,y) = findCellPos pos (fromIntegral $ size*cellSize)
+            let (grNew,gsNew) = runState (updateGameState gr (x,y) mark) gs
+            liftIO $ print gsNew
+            liftIO $ print (x,y)
+            liftIO $ writeIORef gamestate gsNew
+            liftIO $ writeIORef gridstate grNew 
+            drawGrid canv step (Map.assocs grNew)
+            return ()
+        _ -> return ()
 
   UI.on UI.click markCheck $ \_ ->
     do
@@ -83,9 +89,9 @@ drawGrid e step (((x,y),c):cs) = do
 
 drawCell :: UI.Element -> (Double,Double) -> Double -> Cell -> UI.UI ()
 
-drawCell e (x,y) size Cell{mines=(-1)} = do 
+{-drawCell e (x,y) size Cell{mines=(-1)} = do 
                                       e UI.# UI.set' UI.fillStyle (UI.htmlColor "red")
-                                      e UI.# UI.fillRect (x,y) size size
+                                      e UI.# UI.fillRect (x,y) size size-}
 drawCell e (x,y) size c = do
                             drawCellStatus e (status c)
                             e UI.# UI.fillRect (x,y) size size

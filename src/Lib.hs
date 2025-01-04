@@ -1,6 +1,6 @@
 module Lib where
 import qualified Data.Map.Strict as Map
-import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.State.Lazy
 import System.Random
 
 data Status = Empty |
@@ -82,6 +82,14 @@ getNeighbouringCells grid (x,y) =
       c8 = Map.lookup (x-1,y-1) grid
       in [c1,c2,c3,c4,c5,c6,c7,c8] --[(x+1,y),(x-1,y),(x,y+1),(x,y-1),(x+1,y+1),(x+1,y-1),(x-1,y+1),(x-1,y-1)]
 
+getAdjacentCells :: Grid -> (Int,Int) -> [(Maybe Cell,(Int,Int))]
+getAdjacentCells grid (x,y) =   
+  let c1 = Map.lookup (x+1,y) grid
+      c2 = Map.lookup (x-1,y) grid
+      c3 = Map.lookup (x,y+1) grid
+      c4 = Map.lookup (x,y-1) grid
+      in [(c1,(x+1,y)),(c2,(x-1,y)),(c3,(x,y+1)),(c4,(x,y-1))]
+
 updateGameState :: Grid -> (Int,Int) -> Status -> GameState
 updateGameState gr pos s = evalMove pos s (Map.lookup pos gr) gr
 
@@ -104,7 +112,12 @@ evalMove pos Clear (Just c) g =
         do
           put (0,Failed)
           return g
-      Cell{status=Empty} -> clearFromPos pos g (Just c)
+      Cell{status=Empty,mines=m} -> 
+        if (m == 0) then
+          do
+            clearFromPos pos g (Just c)
+        else
+          clearCell pos g
       _ -> return g
         
 evalMove _ _ (Nothing) g = return g
@@ -116,14 +129,26 @@ clearFromPos (x,y) g (Just c) =
   do
     if ((mines c) == 0) then
       do
-        a <- clearCell (x,y) g
-        b <- clearFromPos (x+1,y) a (Map.lookup (x+1,y) a)
-        cg <- clearFromPos (x,y+1) b (Map.lookup (x,y+1) b)
-        d <- clearFromPos (x-1,y) cg (Map.lookup (x-1,y) cg)
-        res <- clearFromPos (x-1,y) d (Map.lookup (x,y-1) d)
+        gc <- clearCell (x,y) g
+        res <- bfs gc (getAdjacentCells gc (x,y))
         return res
     else return g
-    
+
+bfs :: Grid -> [(Maybe Cell,(Int,Int))] -> GameState
+bfs g [] = return g  
+bfs g ((Nothing,pos):cs) = bfs g cs
+bfs g (((Just Cell{status=Clear}),pos):cs) = bfs g cs
+bfs g (((Just c),(x,y)):cs) = 
+  do
+    if mines c == 0 then
+      do
+        gn <- clearCell (x,y) g
+        let frontier = cs `mappend` getAdjacentCells gn (x,y)
+        bfs gn frontier
+    else 
+      do
+        gn <- clearCell (x,y) g
+        bfs gn cs
 
 clearCell :: (Int,Int) -> Grid -> GameState
 clearCell pos g = 
