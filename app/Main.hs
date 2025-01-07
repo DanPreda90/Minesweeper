@@ -88,14 +88,21 @@ drawGrid e step (((x,y),c):cs) = do
                                    drawGrid e step cs
 
 drawCell :: UI.Element -> (Double,Double) -> Double -> Cell -> UI.UI ()
-
-{-drawCell e (x,y) size Cell{mines=(-1)} = do 
-                                      e UI.# UI.set' UI.fillStyle (UI.htmlColor "red")
-                                      e UI.# UI.fillRect (x,y) size size-}
 drawCell e (x,y) size c = do
-                            drawCellStatus e (status c)
+                            e UI.# UI.set' UI.fillStyle (getCellColor c)
                             e UI.# UI.fillRect (x,y) size size
 
-drawCellStatus e Empty = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "#c9c9c9")
-drawCellStatus e Marked = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "green")
-drawCellStatus e Clear = do e UI.# UI.set' UI.fillStyle (UI.htmlColor "black")
+getCellColor :: Cell -> UI.FillStyle
+getCellColor Cell{status=Empty} = UI.htmlColor "#c9c9c9"
+getCellColor Cell{status=Marked} = UI.htmlColor "green"
+getCellColor Cell{status=Clear,mines=m} = 
+  case (m) of
+    0 -> UI.htmlColor "black"
+    1 -> UI.htmlColor "#efed5b"
+    2 -> UI.htmlColor "#efcb5f"
+    3 -> UI.htmlColor "#efbc23"
+    4 -> UI.htmlColor "#f96d02"
+    5 -> UI.htmlColor "red"
+    6 -> UI.htmlColor "#b20000"
+    7 -> UI.htmlColor "#a50052"
+    8 -> UI.htmlColor "#700000"
