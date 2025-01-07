@@ -25,10 +25,9 @@ initGameState grid size gen =
   do
     let (newGen,mineGrid) = Map.mapAccum addMine gen grid
     let final = setMineProximities mineGrid (0,0) size
-    let numMines = foldr (\a b -> if (mines a == (-1)) then b+1 else b) 0 mineGrid
-    --setStdGen $ fst mineGrid
-    put (numMines,Playing)
-    return (final)
+    let numUncleared = foldr accumUnclearedCells 0 mineGrid
+    put (numUncleared,Playing)
+    return final
 
 calcDrawPos :: (Int,Int) -> Double -> (Double,Double)
 calcDrawPos (x,y) step = (dx,dy) where dx = (fromIntegral x) * step
@@ -94,33 +93,39 @@ updateGameState :: Grid -> (Int,Int) -> Status -> GameState
 updateGameState gr pos s = evalMove pos s (Map.lookup pos gr) gr
 
 evalMove :: (Int,Int) -> Status -> Maybe Cell -> Grid -> GameState
-evalMove pos Marked (Just c) g = 
-  do
-    gm <- toggleMark pos Marked c g
-    (m,_) <- get
-    if m == 0 then 
-      do 
-        put (0,Won) 
-        return gm 
-    else return gm
-
+evalMove pos Marked (Just c) g = toggleMark pos Marked c g
 evalMove pos Clear (Just c) g = 
   do
     case (c) of
       Cell{status=Marked} -> return g
-      Cell{mines=(-1)} ->
+      Cell{mines=(-1)} -> do
+        put (0,Failed)
+        return g
+      Cell{status=Empty,mines=0} -> 
         do
-          put (0,Failed)
-          return g
-      Cell{status=Empty,mines=m} -> 
-        if (m == 0) then
-          do
-            clearFromPos pos g (Just c)
-        else
-          clearCell pos g
+          gn <- clearFromPos pos g (Just c)
+          (cl,s) <- get
+          if cl == 0 then
+            do
+              put (cl,Won)
+              return gn
+          else return gn
+      Cell{status=Empty} ->
+        do  
+          gn <- clearCell pos g
+          (cl,s) <- get
+          if cl == 0 then
+            do
+              put (cl,Won)
+              return gn
+          else return gn
       _ -> return g
         
-evalMove _ _ (Nothing) g = return g
+evalMove _ _ _ g = return g
+
+accumUnclearedCells :: Cell -> Int -> Int
+accumUnclearedCells Cell{status=Empty,mines=m} b = if (m /= (-1)) then b+1 else b
+accumUnclearedCells _ b = b 
     
 clearFromPos :: (Int,Int) -> Grid -> Maybe Cell -> GameState
 clearFromPos _ g Nothing = return g
@@ -130,32 +135,40 @@ clearFromPos (x,y) g (Just c) =
     if ((mines c) == 0) then
       do
         gc <- clearCell (x,y) g
-        res <- bfs gc (getAdjacentCells gc (x,y))
+        let mp = Map.singleton (x,y) True
+        res <- bfs gc (filt (getAdjacentCells gc (x,y))) mp
         return res
     else return g
 
-bfs :: Grid -> [(Maybe Cell,(Int,Int))] -> GameState
-bfs g [] = return g  
-bfs g ((Nothing,pos):cs) = bfs g cs
-bfs g (((Just Cell{status=Clear}),pos):cs) = bfs g cs
-bfs g (((Just c),(x,y)):cs) = 
+bfs :: Grid -> [(Cell,(Int,Int))] -> Map.Map (Int,Int) Bool -> GameState
+bfs g [] _ = return g  
+bfs g ((Cell{status=Empty,mines=m},pos):cs) mp =
   do
-    if mines c == 0 then
+    let lkup = mp Map.!? pos
+    if (m > (-1) && lkup == Nothing) then
       do
-        gn <- clearCell (x,y) g
-        let frontier = cs `mappend` getAdjacentCells gn (x,y)
-        bfs gn frontier
-    else 
-      do
-        gn <- clearCell (x,y) g
-        bfs gn cs
+        let nmp = Map.insert pos True mp
+        gn <- clearCell pos g
+        if m == 0 then
+          do
+            let frontier = cs ++ filt (getAdjacentCells gn pos)
+            bfs gn frontier nmp
+        else bfs gn cs nmp
+    else bfs g cs mp
+bfs g (_:cs) dp = bfs g cs dp
+
+filt :: [(Maybe Cell,(Int,Int))] -> [(Cell,(Int,Int))]
+filt [] = []
+filt ((Nothing,_):cs) = filt cs 
+filt (((Just c),p):cs) = [(c,p)] ++ filt cs 
 
 clearCell :: (Int,Int) -> Grid -> GameState
 clearCell pos g = 
   do
+    (cl,s) <- get
     let gn = Map.adjust (\c -> c{status=Clear}) pos g
+    put (cl-1,s)
     return gn
-
 
 toggleMark :: (Int,Int) -> Status -> Cell -> Grid -> GameState
 toggleMark pos s c g = 
@@ -185,4 +198,7 @@ toggleMark pos s c g =
             do
               let gn = Map.adjust (\c -> c{status=Marked}) pos g
               return gn
+                              
+
+
                               

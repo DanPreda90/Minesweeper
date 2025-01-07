@@ -22,6 +22,7 @@ setup window = do
 
   let t = grid size
   let (g,(m,st)) = runState (initGameState t size generator) (0,Playing)
+  liftIO $ print m
   gamestate <- liftIO $ newIORef (m,st)
   gridstate <- liftIO $ newIORef g
   
@@ -93,6 +94,7 @@ drawCell e (x,y) size c = do
                             e UI.# UI.fillRect (x,y) size size
 
 getCellColor :: Cell -> UI.FillStyle
+getCellColor Cell{mines=(-1)} = UI.htmlColor "red"
 getCellColor Cell{status=Empty} = UI.htmlColor "#c9c9c9"
 getCellColor Cell{status=Marked} = UI.htmlColor "green"
 getCellColor Cell{status=Clear,mines=m} = 
