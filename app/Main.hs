@@ -1,12 +1,11 @@
 module Main (main) where
 
 import Lib
-
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import System.Random
 import Control.Monad.IO.Class
-import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.State.Strict
 
 import qualified Graphics.UI.Threepenny as UI
 
@@ -14,6 +13,7 @@ main :: IO ()
 main = do
   UI.startGUI UI.defaultConfig setup
 
+setup :: UI.Window -> UI.UI ()
 setup window = do
   let size = 20
   let cellSize = 20
@@ -79,7 +79,7 @@ setup window = do
     drawGrid canv step (Map.assocs gr)
     return ()
 
-  UI.getBody window UI.#+ [UI.element canv,UI.element clearBtn] UI.#+ [UI.element markCheck, UI.string "Toggle to Mark Tiles"]
+  _ <- UI.getBody window UI.#+ [UI.element canv,UI.element clearBtn] UI.#+ [UI.element markCheck, UI.string "Toggle to Mark Tiles"]
   return ()
 
 drawGrid :: UI.Element -> Double -> [((Int,Int),Cell)] -> UI.UI ()
@@ -108,3 +108,4 @@ getCellColor Cell{status=Clear,mines=m} =
     6 -> UI.htmlColor "#b20000"
     7 -> UI.htmlColor "#a50052"
     8 -> UI.htmlColor "#700000"
+    _ -> UI.htmlColor "black"

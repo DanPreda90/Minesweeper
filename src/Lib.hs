@@ -1,6 +1,6 @@
 module Lib where
 import qualified Data.Map.Strict as Map
-import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.State.Strict
 import System.Random
 
 data Status = Empty |
@@ -21,9 +21,9 @@ toggleMarkDisplay Marked = Clear
 toggleMarkDisplay _ = Marked
 
 initGameState :: RandomGen g => Grid -> Int -> g -> GameState
-initGameState grid size gen = 
+initGameState g size gen = 
   do
-    let (newGen,mineGrid) = Map.mapAccum addMine gen grid
+    let (_,mineGrid) = Map.mapAccum addMine gen g
     let final = setMineProximities mineGrid (0,0) size
     let numUncleared = foldr accumUnclearedCells 0 mineGrid
     put (numUncleared,Playing)
@@ -41,7 +41,7 @@ positions _ 0 = []
 positions size n = (rowPositions size (size-n)) `mappend` (positions size (n-1))
 
 rowPositions :: Int -> Int -> [((Int,Int),Cell)]
-rowPositions n x = take n $ iterate (\((x,y),c) -> ((x,y+1),c)) ((x,0),cell Empty 0)
+rowPositions n xp = take n $ iterate (\((x,y),c) -> ((x,y+1),c)) ((xp,0),cell Empty 0)
 
 grid :: Int -> Grid
 grid size = Map.fromList (positions size size)
@@ -50,78 +50,83 @@ cell :: Status -> Int -> Cell
 cell s m = Cell {status=s,mines=m}
 
 addMine :: RandomGen g => g -> Cell -> (g,Cell)
-addMine gen c = if (val <= 0.9) then (newGen,cell Empty 0) else (newGen,cell Empty (-1)) where (val,newGen) = uniformR (0::Float,1::Float) gen
+addMine gen _ = if (val <= 0.9) then (newGen,cell Empty 0) else (newGen,cell Empty (-1)) where (val,newGen) = uniformR (0::Float,1::Float) gen
 
 setMineProximities :: Grid -> (Int,Int) -> Int -> Grid
-setMineProximities grid (x,y) size 
-  | (x == size) = setMineProximities grid (0,y+1) size
-  | (y == size) = grid
-  | otherwise = setMineProximities (setMineProximity grid (x,y)) (x+1,y) size
+setMineProximities g (x,y) size 
+  | (x == size) = setMineProximities g (0,y+1) size
+  | (y == size) = g
+  | otherwise = setMineProximities (setMineProximity g (x,y)) (x+1,y) size
 
-setMineProximity grid (x,y) = 
-  case (Map.lookup (x,y) grid) of
-    Just Cell{mines = -1} -> grid
-    Just _ -> let numMines = foldr getMines 0 (getNeighbouringCells grid (x,y))
-                  in Map.adjust (\c -> c{mines=numMines}) (x,y) grid
-    Nothing -> grid
+setMineProximity :: Grid -> (Int, Int) -> Grid
+setMineProximity g (x,y) = 
+  case (Map.lookup (x,y) g) of
+    Just Cell{mines = -1} -> g
+    Just _ -> let numMines = foldr getMines 0 (getNeighbouringCells g (x,y))
+                  in Map.adjust (\c -> c{mines=numMines}) (x,y) g
+    Nothing -> g
 
 getMines :: Maybe Cell -> Int -> Int
 getMines (Just c) a = if (mines c == (-1)) then a+1 else a
 getMines Nothing a = a
 
 getNeighbouringCells :: Grid -> (Int,Int) -> [Maybe Cell]
-getNeighbouringCells grid (x,y) =   
-  let c1 = Map.lookup (x+1,y) grid
-      c2 = Map.lookup (x-1,y) grid
-      c3 = Map.lookup (x,y+1) grid
-      c4 = Map.lookup (x,y-1) grid
-      c5 = Map.lookup (x+1,y+1) grid
-      c6 = Map.lookup (x+1,y-1) grid
-      c7 = Map.lookup (x-1,y+1) grid
-      c8 = Map.lookup (x-1,y-1) grid
+getNeighbouringCells g (x,y) =   
+  let c1 = Map.lookup (x+1,y) g
+      c2 = Map.lookup (x-1,y) g
+      c3 = Map.lookup (x,y+1) g
+      c4 = Map.lookup (x,y-1) g
+      c5 = Map.lookup (x+1,y+1) g
+      c6 = Map.lookup (x+1,y-1) g
+      c7 = Map.lookup (x-1,y+1) g
+      c8 = Map.lookup (x-1,y-1) g
       in [c1,c2,c3,c4,c5,c6,c7,c8] --[(x+1,y),(x-1,y),(x,y+1),(x,y-1),(x+1,y+1),(x+1,y-1),(x-1,y+1),(x-1,y-1)]
 
 getAdjacentCells :: Grid -> (Int,Int) -> [(Maybe Cell,(Int,Int))]
-getAdjacentCells grid (x,y) =   
-  let c1 = Map.lookup (x+1,y) grid
-      c2 = Map.lookup (x-1,y) grid
-      c3 = Map.lookup (x,y+1) grid
-      c4 = Map.lookup (x,y-1) grid
+getAdjacentCells g (x,y) =   
+  let c1 = Map.lookup (x+1,y) g
+      c2 = Map.lookup (x-1,y) g
+      c3 = Map.lookup (x,y+1) g
+      c4 = Map.lookup (x,y-1) g
       in [(c1,(x+1,y)),(c2,(x-1,y)),(c3,(x,y+1)),(c4,(x,y-1))]
 
 updateGameState :: Grid -> (Int,Int) -> Status -> GameState
 updateGameState gr pos s = evalMove pos s (Map.lookup pos gr) gr
 
 evalMove :: (Int,Int) -> Status -> Maybe Cell -> Grid -> GameState
-evalMove pos Marked (Just c) g = toggleMark pos Marked c g
+evalMove pos Marked (Just c) g = toggleMark pos c g
 evalMove pos Clear (Just c) g = 
   do
     case (c) of
       Cell{status=Marked} -> return g
+      
       Cell{mines=(-1)} -> do
         put (0,Failed)
         return g
+
       Cell{status=Empty,mines=0} -> 
         do
           gn <- clearFromPos pos g (Just c)
-          (cl,s) <- get
-          if cl == 0 then
-            do
-              put (cl,Won)
-              return gn
-          else return gn
+          checkWinCon gn
+          
       Cell{status=Empty} ->
         do  
           gn <- clearCell pos g
-          (cl,s) <- get
-          if cl == 0 then
-            do
-              put (cl,Won)
-              return gn
-          else return gn
+          checkWinCon gn
+
       _ -> return g
         
 evalMove _ _ _ g = return g
+
+checkWinCon :: Grid -> GameState
+checkWinCon g = 
+  do
+    (cl,_) <- get
+    if cl == 0 then
+      do
+        put (cl,Won)
+        return g
+    else return g
 
 accumUnclearedCells :: Cell -> Int -> Int
 accumUnclearedCells Cell{status=Empty,mines=m} b = if (m /= (-1)) then b+1 else b
@@ -129,7 +134,7 @@ accumUnclearedCells _ b = b
     
 clearFromPos :: (Int,Int) -> Grid -> Maybe Cell -> GameState
 clearFromPos _ g Nothing = return g
-clearFromPos pos g (Just Cell{status=Clear}) = return g
+clearFromPos _ g (Just Cell{status=Clear}) = return g
 clearFromPos (x,y) g (Just c) = 
   do
     if ((mines c) == 0) then
@@ -170,15 +175,15 @@ clearCell pos g =
     put (cl-1,s)
     return gn
 
-toggleMark :: (Int,Int) -> Status -> Cell -> Grid -> GameState
-toggleMark pos s c g = 
+toggleMark :: (Int,Int)  -> Cell -> Grid -> GameState
+toggleMark pos ce g = 
   do
     (ms,st) <- get
-    case (c) of
+    case (ce) of
       Cell{status=Clear} -> return g
       Cell{status=Marked} ->
         do
-          if (mines c == (-1)) then 
+          if (mines ce == (-1)) then 
             do
               put (ms+1,st)
               let gn = Map.adjust (\c -> c{status=Empty}) pos g
@@ -189,7 +194,7 @@ toggleMark pos s c g =
               return gn
       Cell{status=Empty} ->
         do
-          if (mines c == (-1)) then 
+          if (mines ce == (-1)) then 
             do
               put (ms-1,st)
               let gn = Map.adjust (\c -> c{status=Marked}) pos g
@@ -201,4 +206,3 @@ toggleMark pos s c g =
                               
 
 
-                              
