@@ -209,7 +209,7 @@ toggleMark pos ce g =
 type Solution = (Int,Int)
 type Strategy = Grid -> (Int,Int) -> Maybe [Solution]
 findNextSafeMoves :: Grid -> [Solution]
-findNextSafeMoves g = removeDuplicates $ filter (\p -> f p) $ applyStrategies g (fst $ unzip (Map.toList g)) [adjacentStrat]
+findNextSafeMoves g = removeDuplicates $ filter (\p -> f p) $ applyStrategies g (fst $ unzip (Map.toList g)) [adjacentStrat,oneTwoOneStrat]
                         where f = removeCleared g
 
 removeCleared :: Grid -> (Int,Int) -> Bool
@@ -268,6 +268,22 @@ adjacentStrat g pos =
         Just $ getUnCleared (getNeighbouringCellswithPos g pos)
       else Nothing
     _ -> Nothing
+
+oneTwoOneStrat :: Strategy
+oneTwoOneStrat g (x,y) = 
+  case (g Map.!? (x,y)) of
+    Just Cell{status=Clear,mines=1} -> case (g Map.!? (x+1,y)) of
+      Just Cell{status=Clear,mines=2} -> case (g Map.!? (x+2,y)) of
+        Just Cell{status=Clear,mines=1} -> Just $ getOneTwoOnePos g [(x-1,y-1),(x+1,y-1),(x+2,y-1)]
+        _ -> Nothing
+      _ -> Nothing
+    _ -> Nothing
+
+getOneTwoOnePos :: Grid -> [(Int,Int)] -> [Solution]
+getOneTwoOnePos g [] = []
+getOneTwoOnePos g (p:ps) = case (g Map.!? p) of
+  Just _ -> [p] ++ getOneTwoOnePos g ps
+  Nothing -> getOneTwoOnePos g ps
         
 getUnCleared :: [(Maybe Cell,(Int,Int))] -> [Solution]
 getUnCleared [] = []
