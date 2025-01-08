@@ -25,12 +25,14 @@ setup window = do
   liftIO $ print m
   gamestate <- liftIO $ newIORef (m,st)
   gridstate <- liftIO $ newIORef g
+  safeMoves <- liftIO $ newIORef []
   
   currentPosition <- liftIO $ newIORef (0,0)
   markToggle <- liftIO $ newIORef Clear
 
   clearBtn <- UI.button UI.#+ [UI.string "Reset "]
   markCheck <- UI.input UI.# UI.set UI.type_ "checkbox"
+  solveBtn <- UI.button UI.#+ [UI.string "Press to find next safe move"]
 
   canv <- UI.canvas
     UI.# UI.set UI.height 700
@@ -39,6 +41,36 @@ setup window = do
 
   UI.on UI.mousemove canv $ \xy ->
     do liftIO $ writeIORef currentPosition xy
+
+  UI.on UI.click solveBtn $ \_ ->
+    do
+      gr <- liftIO $ readIORef gridstate
+      gs <- liftIO $ readIORef gamestate
+      safemvs <- liftIO $ readIORef safeMoves
+      liftIO $ print safemvs
+      case (safemvs) of
+        [] -> 
+          do
+            case (findNextSafeMoves gr) of
+              [] -> return ()
+              (m:ms) ->
+                do
+                  let (grNew,gsNew) = runState (updateGameState gr m Clear) gs
+                  liftIO $ writeIORef gamestate gsNew
+                  liftIO $ writeIORef gridstate grNew 
+                  liftIO $ writeIORef safeMoves ms  
+                  drawGrid canv step (Map.assocs grNew) 
+                  return ()
+
+        (m:ms) ->
+          do
+            let (grNew,gsNew) = runState (updateGameState gr m Clear) gs
+            liftIO $ writeIORef gamestate gsNew
+            liftIO $ writeIORef gridstate grNew 
+            liftIO $ writeIORef safeMoves ms  
+            drawGrid canv step (Map.assocs grNew) 
+            return ()
+
 
   UI.on UI.click clearBtn  $ \_ ->
     do
@@ -79,7 +111,7 @@ setup window = do
     drawGrid canv step (Map.assocs gr)
     return ()
 
-  _ <- UI.getBody window UI.#+ [UI.element canv,UI.element clearBtn] UI.#+ [UI.element markCheck, UI.string "Toggle to Mark Tiles"]
+  _ <- UI.getBody window UI.#+ [UI.element canv,UI.element clearBtn,UI.element solveBtn] UI.#+ [UI.element markCheck, UI.string "Toggle to Mark Tiles"]
   return ()
 
 drawGrid :: UI.Element -> Double -> [((Int,Int),Cell)] -> UI.UI ()

@@ -91,6 +91,7 @@ getAdjacentCells g (x,y) =
       in [(c1,(x+1,y)),(c2,(x-1,y)),(c3,(x,y+1)),(c4,(x,y-1))]
 
 updateGameState :: Grid -> (Int,Int) -> Status -> GameState
+updateGameState gr _ Empty = return gr
 updateGameState gr pos s = evalMove pos s (Map.lookup pos gr) gr
 
 evalMove :: (Int,Int) -> Status -> Maybe Cell -> Grid -> GameState
@@ -205,4 +206,24 @@ toggleMark pos ce g =
               return gn
                               
 
+type Strategy = Grid -> (Int,Int) -> Maybe [Solution]
+type Solution = (Int,Int)
+strategies :: [Strategy]
+strategies = [adjacencyStrat]
 
+findNextSafeMoves :: Grid -> Maybe [Solution]
+findNextSafeMoves g = 
+  let (ks,_) = unzip $ Map.toList g in map (\k -> applyStrategies g k strategies) ks
+
+applyStrategies :: Grid -> (Int,Int) -> [Strategy] -> Maybe Solution
+applyStrategies _ _ [] = Nothing
+applyStrategies g (0,0) (st:sts) = 
+  case (st g (0,0)) of
+    Just s -> Just s
+    Nothing -> applyStrategies g (0,0) sts 
+applyStrategies _ _ _ = Nothing
+
+testStrat :: Strategy
+testStrat _ _ = let (i,gn) = uniformR (0,19) (mkStdGen 201223131)
+                    (i',_) = uniformR (0,19) gn in Just (i,i')
+      
