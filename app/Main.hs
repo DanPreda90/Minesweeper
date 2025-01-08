@@ -51,6 +51,7 @@ setup window = do
       case (safemvs) of
         [] -> 
           do
+            liftIO $ print $ findNextSafeMoves gr
             case (findNextSafeMoves gr) of
               [] -> return ()
               (m:ms) ->
@@ -79,6 +80,7 @@ setup window = do
       let (g,(m,st)) = runState (initGameState cleared size gen) (0,Playing)
       liftIO $ writeIORef gamestate (m,st) 
       liftIO $ writeIORef gridstate g
+      liftIO $ writeIORef safeMoves []
       drawGrid canv step (Map.assocs g)
 
   UI.on UI.click canv $ \_ ->
@@ -152,7 +154,7 @@ getCellColor Cell{status=Clear,mines=m} =
     7 -> UI.htmlColor "#a50052"
     8 -> UI.htmlColor "#700000"
     _ -> UI.htmlColor "black"
-getCellColor Cell{mines=(-1)} = UI.htmlColor "red"
+
 getCellColor Cell{status=Empty} = UI.htmlColor "#c9c9c9"
 getCellColor Cell{status=Marked} = UI.htmlColor "green"
 
