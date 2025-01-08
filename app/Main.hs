@@ -121,15 +121,26 @@ drawGrid e step (((x,y),c):cs) = do
                                    drawGrid e step cs
 
 drawCell :: UI.Element -> (Double,Double) -> Double -> Cell -> UI.UI ()
+drawCell e (x,y) size c = 
+  if (mines c > 0 && status c == Clear) then
+    do
+      e UI.# UI.set' UI.fillStyle (UI.htmlColor "black")
+      e UI.# UI.fillRect (x,y) size size
+      e UI.# UI.set' UI.fillStyle (getCellColor c)
+      e UI.# UI.set' UI.textFont "10px sans-serif"
+      e UI.# UI.fillText (show (mines c)) (x+5,y+10) 
+      
+  else
+    do
+      e UI.# UI.set' UI.fillStyle (getCellColor c)
+      e UI.# UI.fillRect (x,y) size size
+
 drawCell e (x,y) size c = do
                             e UI.# UI.set' UI.fillStyle (getCellColor c)
                             e UI.# UI.fillRect (x,y) size size
 
 getCellColor :: Cell -> UI.FillStyle
-getCellColor Cell{mines=(-1)} = UI.htmlColor "red"
-getCellColor Cell{status=Empty} = UI.htmlColor "#c9c9c9"
-getCellColor Cell{status=Marked} = UI.htmlColor "green"
-getCellColor Cell{status=Clear,mines=m} = 
+getCellColor Cell{status=Clear,mines=m} =  
   case (m) of
     0 -> UI.htmlColor "black"
     1 -> UI.htmlColor "#efed5b"
@@ -141,3 +152,7 @@ getCellColor Cell{status=Clear,mines=m} =
     7 -> UI.htmlColor "#a50052"
     8 -> UI.htmlColor "#700000"
     _ -> UI.htmlColor "black"
+getCellColor Cell{mines=(-1)} = UI.htmlColor "red"
+getCellColor Cell{status=Empty} = UI.htmlColor "#c9c9c9"
+getCellColor Cell{status=Marked} = UI.htmlColor "green"
+

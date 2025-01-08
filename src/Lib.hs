@@ -5,7 +5,7 @@ import System.Random
 
 data Status = Empty |
               Marked|
-              Clear deriving Show
+              Clear deriving (Show,Eq)
 
 data GameStatus = Won |
                   Failed |
@@ -205,25 +205,10 @@ toggleMark pos ce g =
               let gn = Map.adjust (\c -> c{status=Marked}) pos g
               return gn
                               
-
-type Strategy = Grid -> (Int,Int) -> Maybe [Solution]
 type Solution = (Int,Int)
-strategies :: [Strategy]
-strategies = [adjacencyStrat]
+findNextSafeMoves :: Grid -> [Solution]
+findNextSafeMoves g = []
 
-findNextSafeMoves :: Grid -> Maybe [Solution]
-findNextSafeMoves g = 
-  let (ks,_) = unzip $ Map.toList g in map (\k -> applyStrategies g k strategies) ks
 
-applyStrategies :: Grid -> (Int,Int) -> [Strategy] -> Maybe Solution
-applyStrategies _ _ [] = Nothing
-applyStrategies g (0,0) (st:sts) = 
-  case (st g (0,0)) of
-    Just s -> Just s
-    Nothing -> applyStrategies g (0,0) sts 
-applyStrategies _ _ _ = Nothing
 
-testStrat :: Strategy
-testStrat _ _ = let (i,gn) = uniformR (0,19) (mkStdGen 201223131)
-                    (i',_) = uniformR (0,19) gn in Just (i,i')
       
